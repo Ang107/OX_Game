@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox
 import random
-from time import sleep
+
 class OX_game_GUI:
     
     def __init__(self):
@@ -9,6 +9,7 @@ class OX_game_GUI:
         
 
     def __setup_GUI(self):
+        #GUI初期化
         self.OX_game = OX_game()
         self.turn = 0
         self.root = tk.Tk()
@@ -40,56 +41,59 @@ class OX_game_GUI:
                 button.grid(row=i, column=j)
                 self.Bord[i][j] = button
 
-                
         self.BordFrame.pack(pady=10)
         
         self.id_ = None
         self.clicked = None
         
-        self.root.after(1000,self.continue_game)
+        if 1 == self.player_turn:
+            self.__change_DISABLED()
+            
+        self.root.after(1000,self.__continue_game)
         self.root.mainloop()
     
-    def reset_game(self):
+    def __reset_game(self):
         self.root.destroy()
         self.__setup_GUI()
-        
-    def continue_game(self):
-        if self.turn < 9:
-            if self.turn % 2 == self.player_turn:
-                if self.clicked:
-                    self.turn += 1
-                    self.OX_game.update(self.clicked[0] * 3 + self.clicked[1],"P")
-                    self.update()
-                    self.__change_DISABLED()
-            else:
-                
+    
+    #ゲームのメイン部分
+    def __continue_game(self):
+        #プレイヤーの番かつボタンが押された場合
+        if self.turn % 2 == self.player_turn:
+            if self.clicked:
+                self.OX_game.update(self.clicked[0] * 3 + self.clicked[1],"P")
+                self.__update()
+                self.__change_DISABLED()
                 self.turn += 1
-                idx = self.OX_game.start_npc_turn(self.turn)
-                self.OX_game.update(idx,"N")
-                self.clicked = None
-                self.update()
-                self.__change_NORMAL()
-                
-            # print(self.turn)
-            self.root.update()
-            result = self.OX_game.is_finished(self.turn)    
-            if result == 1:
-                self.root.after_cancel(self.id_)
-                self.show_win()
-            elif result == -1:
-                self.root.after_cancel(self.id_)
-                self.show_lose()
+        #NPCの番の場合
+        else:
+            idx = self.OX_game.start_npc_turn(self.turn)
+            self.OX_game.update(idx,"N")
+            self.clicked = None
+            self.__update()
+            self.__change_NORMAL()
+            self.turn += 1
+            
+        #描画の更新
+        self.root.update()
+        
+        #勝敗の確認
+        result = self.OX_game.is_finished(self.turn)    
+        if result == 1:
+            self.root.after_cancel(self.id_)
+            self.__show_win()
+        elif result == -1:
+            self.root.after_cancel(self.id_)
+            self.__show_lose()
+        else:
+            if self.turn % 2 == self.player_turn:
+                self.id_ = self.root.after(100,self.__continue_game)
             else:
-                if self.turn % 2 == self.player_turn:
-                    self.id_ = self.root.after(100,self.continue_game)
-                else:
-                    self.id_ = self.root.after(1000,self.continue_game)
+                self.id_ = self.root.after(1000,self.__continue_game)
                     
-            # print(result)
-                
                 
    
-    def update(self):
+    def __update(self):
         self.__change_bord()
         self.__change_num()
         self.__change_turn()
@@ -131,10 +135,10 @@ class OX_game_GUI:
         
         
     
-    def show_win(self):       
+    def __show_win(self):       
         messagebox.showinfo("リザルト","プレイヤーの勝ちです。")
         self.__show_retry_exit_options()
-    def show_lose(self):
+    def __show_lose(self):
         messagebox.showinfo("リザルト","プレイヤーの負けです。")
         self.__show_retry_exit_options()
         
@@ -145,7 +149,7 @@ class OX_game_GUI:
         options_window.geometry("250x200")
 
         # リトライボタン
-        retry_button = tk.Button(options_window, text="もう一度遊ぶ", command=lambda:[options_window.destroy(),self.reset_game()],width=15,font=("Helvetica",14))
+        retry_button = tk.Button(options_window, text="もう一度遊ぶ", command=lambda:[options_window.destroy(),self.__reset_game()],width=15,font=("Helvetica",14))
         retry_button.pack(pady=5)
 
         # 終了ボタン
@@ -153,7 +157,7 @@ class OX_game_GUI:
         exit_button.pack(pady=5)
             
         
-import random
+
 class OX_game:
     def __init__(self):
         self.reset_game()
@@ -201,6 +205,7 @@ class OX_game:
         self.npc_num = 0
         
         
+        
     #プレイヤーの勝ちなら1,負けなら-1,続行なら0
     def is_finished(self,turn):
         for i in self.line:
@@ -216,13 +221,13 @@ class OX_game:
                 return -1
         return 0
         
-        
+    #NPCのマスの選択
     def start_npc_turn(self,turn):
         rslt = self.__f(turn,self.s)
         return rslt[1]
         
         
-        
+    #盤面情報の更新
     def update(self,idx,user):
         if user == "P":
             self.player_num += self.a[idx]
@@ -233,32 +238,25 @@ class OX_game:
         
         
     
-
-    # ターン数と盤面を受け取り、先手(高橋君）にとって勝ち盤面なら1、負け盤面なら-1を返す。
     def __f(self,turn, s):
         # 縦横斜めのラインになっているものがあるか判定
         for i in self.line:
-            if s[i[0]] == s[i[1]] == s[i[2]] == 1:
+            if s[i[0]] == s[i[1]] == s[i[2]] == "N":
                 return [10**18,-1]
-            elif s[i[0]] == s[i[1]] == s[i[2]] == 2:
+            elif s[i[0]] == s[i[1]] == s[i[2]] == "P":
                 return [-10**18,-1]
 
-        # 盤面がすべて埋まっている場合は塗ったマスの値の総和を比較
         if turn == 9:
-            tk, ao = 0, 0
+            P, N = 0, 0
             for idx, i in enumerate(s):
-                if i == 1:
-                    tk += self.a[idx]
+                if i == "P":
+                    P += self.a[idx]
                 else:
-                    ao += self.a[idx]
+                    N += self.a[idx]
 
-            return [tk - ao,-1] 
+            return [N - P,-1] 
       
-
-        # 高橋君の手番において、一手で遷移な盤面を全探索し、
-        # もっとも良い手を打ったとするとき、高橋君にとっての勝ち盤面に遷移可能か
-        # (一手で遷移な盤面のうち、一つでも高橋君にとっての勝ち盤面に遷移可能なら1,そうでないなら-1)
-        if turn % 2 == 0:
+        if turn % 2 == self.npc_turn:
             rslt = [-float("inf"),-1]
             for i in range(9):
                 # 空きマスなら
@@ -266,20 +264,17 @@ class OX_game:
                     # 盤面のコピー
                     s_n = s[:]
                     # 盤面の更新
-                    s_n[i] = 1
+                    s_n[i] = "N"
                     tmp = self.__f(turn + 1, s_n)
                     if rslt[0] < tmp[0]:
                         rslt = [tmp[0],i]
 
-        # 青木君の手番において、一手で遷移な盤面を全探索し、
-        # もっとも良い手を打ったとするとき、青木君にとっての勝ち盤面に遷移可能か
-        # (一手で遷移な盤面うのち、一つでも青木君にとっての勝ち盤面に遷移可能なら-1,そうでないなら1)
         else:
             rslt = [float("inf"),-1]
             for i in range(9):
                 if s[i] == -1:
                     s_n = s[:]
-                    s_n[i] = 2
+                    s_n[i] = "P"
                     tmp = self.__f(turn + 1, s_n)
                     if rslt[0] > tmp[0]:
                         rslt = [tmp[0],i]
