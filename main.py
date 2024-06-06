@@ -2,9 +2,8 @@ import tkinter as tk
 from tkinter import messagebox
 import random
 
-
 class OXGame:
-    """This class represents the game logic of OX Game."""
+    """OXゲームのロジックを表現するクラス"""
 
     PLAYER = "P"
     NPC = "N"
@@ -13,7 +12,7 @@ class OXGame:
         self.reset_game()
 
     def reset_game(self):
-        """Resets the game to start a new game."""
+        """新しいゲームを開始するためにゲームをリセットする"""
         self.board_values = [random.choice(range(-100, 101)) for _ in range(9)]
         self.board_state = [-1 for _ in range(9)]
         self.lines = [
@@ -27,6 +26,7 @@ class OXGame:
             [2, 4, 6],
         ]
 
+        # 合計が偶数の場合、ゲームを適切に進行させるために調整
         if sum(self.board_values) % 2 == 0:
             self.board_values[0] -= 1
 
@@ -35,8 +35,8 @@ class OXGame:
         self.player_score = 0
         self.npc_score = 0
 
-    def is_finished(self, turn):
-        """Checks if the game is finished, returning 1 for player win, -1 for NPC win, or 0 to continue."""
+    def check_winner(self, turn):
+        """ゲームの勝者をチェックする。1はプレイヤーの勝利、-1はNPCの勝利、0は続行"""
         for line in self.lines:
             if (
                 self.board_state[line[0]]
@@ -50,19 +50,16 @@ class OXGame:
                     return -1
 
         if turn == 9:
-            if self.player_score > self.npc_score:
-                return 1
-            else:
-                return -1
+            return 1 if self.player_score > self.npc_score else -1
         return 0
 
     def start_npc_turn(self, turn):
-        """Determines the NPC's move."""
+        """NPCの手を決定する"""
         result = self.evaluate_position(turn, self.board_state)
         return result[1]
 
     def update(self, idx, user):
-        """Updates the game board and scores based on the user's move."""
+        """ユーザーの手に基づいてゲームボードとスコアを更新する"""
         if user == self.PLAYER:
             self.player_score += self.board_values[idx]
             self.board_state[idx] = self.PLAYER
@@ -71,7 +68,7 @@ class OXGame:
             self.board_state[idx] = self.NPC
 
     def evaluate_position(self, turn, board_state):
-        """Evaluates the board position using a minimax-like strategy for the NPC."""
+        """NPCのためにミニマックスのような戦略を使用してボードの位置を評価する"""
         for i in self.lines:
             if board_state[i[0]] == board_state[i[1]] == board_state[i[2]] == self.NPC:
                 return [10**18, 9]
@@ -84,13 +81,13 @@ class OXGame:
                 return [-(10**18), 9]
 
         if turn == 9:
-            palyer_score, npc_score = 0, 0
+            player_score, npc_score = 0, 0
             for i in range(9):
                 if board_state[i] == self.PLAYER:
-                    palyer_score += self.board_values[i]
+                    player_score += self.board_values[i]
                 else:
                     npc_score += self.board_values[i]
-            return [npc_score - palyer_score, 9]
+            return [npc_score - player_score, 9]
 
         best_result = (
             [-float("inf"), 9] if turn % 2 == self.npc_turn else [float("inf"), 9]
@@ -112,19 +109,33 @@ class OXGame:
 
 
 class OXGameGUI:
-    """This class represents the graphical user interface for OX Game."""
+    """OXゲームのグラフィカルユーザーインターフェースを表現するクラス"""
 
     def __init__(self):
         self.setup_gui()
 
     def setup_gui(self):
-        """Initializes the GUI components."""
+        """GUIコンポーネントを初期化する"""
         self.game = OXGame()
         self.turn = 0
         self.root = tk.Tk()
         self.root.title("OX Game")
         self.root.geometry("600x600")
 
+        self.initialize_turn_frame()
+        self.initialize_score_frame()
+        self.initialize_board_frame()
+
+        self.clicked = None
+
+        if self.game.player_turn == 1:
+            self.change_button_states(tk.DISABLED)
+
+        self.root.after(1000, self.continue_game)
+        self.root.mainloop()
+
+    def initialize_turn_frame(self):
+        """ターン表示フレームを初期化する"""
         self.turn_frame = tk.Frame(self.root)
         turn_text = (
             "プレイヤーのターン" if self.game.player_turn == 0 else "NPCのターン"
@@ -135,6 +146,8 @@ class OXGameGUI:
         self.turn_label.pack()
         self.turn_frame.pack()
 
+    def initialize_score_frame(self):
+        """スコア表示フレームを初期化する"""
         self.score_frame = tk.Frame(self.root)
         self.player_score_label = tk.Label(
             self.score_frame,
@@ -154,6 +167,8 @@ class OXGameGUI:
         self.npc_score_label.pack(side=tk.RIGHT, padx=10, pady=10)
         self.score_frame.pack(pady=10)
 
+    def initialize_board_frame(self):
+        """ボード表示フレームを初期化する"""
         self.board_frame = tk.Frame(self.root)
         self.board_buttons = [[None] * 3 for _ in range(3)]
         for i in range(3):
@@ -171,38 +186,30 @@ class OXGameGUI:
 
         self.board_frame.pack(pady=10)
 
-        self.clicked = None
-
-        if self.game.player_turn == 1:
-            self.change_button_states("disabled")
-
-        self.root.after(1000, self.continue_game)
-        self.root.mainloop()
-
     def on_player_click(self, row, col):
-        """Handles player's click on the board."""
+        """プレイヤーがボードをクリックした時の処理"""
         self.clicked = (row, col)
-        self.change_button_states("disabled")
+        self.change_button_states(tk.DISABLED)
 
     def continue_game(self):
-        """Continues the game with NPC moves and checks for game end."""
+        """NPCの手を含めてゲームを続行し、ゲームの終了をチェックする"""
         if self.turn % 2 == self.game.player_turn:
             if self.clicked:
                 self.game.update(self.clicked[0] * 3 + self.clicked[1], OXGame.PLAYER)
                 self.update_display()
-                self.change_button_states("disabled")
+                self.change_button_states(tk.DISABLED)
                 self.turn += 1
         else:
             idx = self.game.start_npc_turn(self.turn)
             self.game.update(idx, OXGame.NPC)
             self.clicked = None
             self.update_display()
-            self.change_button_states("normal")
+            self.change_button_states(tk.NORMAL)
             self.turn += 1
 
         self.root.update()
 
-        result = self.game.is_finished(self.turn)
+        result = self.game.check_winner(self.turn)
         if result != 0:
             self.root.after_cancel(self.id_)
             if result == 1:
@@ -216,7 +223,7 @@ class OXGameGUI:
                 self.id_ = self.root.after(1000, self.continue_game)
 
     def update_display(self):
-        """Updates the GUI display based on the game state."""
+        """ゲームの状態に基づいてGUIを更新する"""
         for i in range(3):
             for j in range(3):
                 button = self.board_buttons[i][j]
@@ -238,24 +245,19 @@ class OXGameGUI:
         self.turn_label["text"] = turn_text
 
     def change_button_states(self, state):
-        """Changes the state of all board buttons."""
-        if state == "disabled":
-            for i in range(3):
-                for j in range(3):
-                    self.board_buttons[i][j].config(state=tk.DISABLED)
-        else:
-            for i in range(3):
-                for j in range(3):
-                    if self.game.board_state[i * 3 + j] == -1:
-                        self.board_buttons[i][j].config(state=tk.NORMAL)
+        """ボード上のすべてのボタンの状態を変更する"""
+        for i in range(3):
+            for j in range(3):
+                if self.game.board_state[i * 3 + j] == -1:
+                    self.board_buttons[i][j].config(state=state)
 
     def show_result(self, message):
-        """Displays the game result and provides options to retry or exit."""
+        """ゲームの結果を表示し、リトライまたは終了のオプションを提供する"""
         messagebox.showinfo("リザルト", message)
         self.show_retry_exit_options()
 
     def show_retry_exit_options(self):
-        """Creates a window with options to retry or exit the game."""
+        """ゲームをリトライするか終了するオプションを提供するウィンドウを作成する"""
         options_window = tk.Toplevel(self.root)
         options_window.title("メニュー")
         options_window.geometry("250x200")
